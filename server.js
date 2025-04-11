@@ -36,6 +36,7 @@ app.get('/api/public-videos', async (req, res) => {
 
         if (error) throw error;
 
+        console.log('Видео из базы:', data); // Логируем данные для отладки
         res.json(data);
     } catch (error) {
         console.error('Ошибка получения видео:', error.message);
@@ -66,11 +67,50 @@ app.post('/api/register-channel', async (req, res) => {
     }
 });
 
-// Запуск сервера на порту из переменной окружения (для Koyeb)
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
+// Маршрут для обновления данных видео
+app.post('/api/update-video', async (req, res) => {
+    const {
+        url, views, likes, dislikes, user_likes, user_dislikes, comments,
+        shares, view_time, replays, duration, last_position, chat_messages, description
+    } = req.body;
+
+    if (!url) {
+        return res.status(400).json({ error: 'Не указан URL видео' });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('publicVideos')
+            .upsert({
+                url,
+                views,
+                likes,
+                dislikes,
+                user_likes,
+                user_dislikes,
+                comments,
+                shares,
+                view_time,
+                replays,
+                duration,
+                last_position,
+                chat_messages,
+                description,
+                timestamp: new Date().toISOString() // Обновляем время
+            }, { onConflict: 'url' })
+            .select();
+
+        if (error) throw error;
+
+        console.log('Видео обновлено:', data); // Логируем для отладки
+        res.json({ message: 'Данные видео обновлены', data });
+    } catch (error) {
+        console.error('Ошибка обновления видео:', error.message);
+        res.status(500).json({ error: 'Ошибка обновления видео' });
+    }
 });
+
+// Маршрут для удаления видео
 app.post('/api/delete-video', async (req, res) => {
     const { url, telegram_id } = req.body;
     if (!url || !telegram_id) {
@@ -96,4 +136,10 @@ app.post('/api/delete-video', async (req, res) => {
         console.error('Ошибка удаления видео:', error.message);
         res.status(500).json({ error: 'Ошибка удаления видео' });
     }
+});
+
+// Запуск сервера на порту из переменной окружения (для Koyeb)
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Сервер запущен на порту ${PORT}`);
 });
