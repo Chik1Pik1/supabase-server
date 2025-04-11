@@ -5,17 +5,27 @@ const cors = require('cors');
 
 const app = express();
 
+// Настройка CORS для разрешения запросов с фронтенда
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // Парсинг JSON-запросов
 
+// Инициализация Supabase с переменными окружения
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+    console.error('Ошибка: SUPABASE_URL или SUPABASE_SERVICE_KEY не определены');
+    process.exit(1); // Завершаем процесс, если переменные отсутствуют
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Маршрут для проверки работы сервера
 app.get('/', (req, res) => {
     res.send('Supabase сервер работает!');
 });
 
+// Маршрут для получения списка публичных видео
 app.get('/api/public-videos', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -33,6 +43,7 @@ app.get('/api/public-videos', async (req, res) => {
     }
 });
 
+// Маршрут для регистрации канала
 app.post('/api/register-channel', async (req, res) => {
     const { telegram_id, channel_link } = req.body;
 
@@ -55,6 +66,7 @@ app.post('/api/register-channel', async (req, res) => {
     }
 });
 
+// Запуск сервера на порту из переменной окружения (для Koyeb)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Сервер запущен на порту ${PORT}`);
