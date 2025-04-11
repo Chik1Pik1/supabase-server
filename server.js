@@ -71,3 +71,29 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Сервер запущен на порту ${PORT}`);
 });
+app.post('/api/delete-video', async (req, res) => {
+    const { url, telegram_id } = req.body;
+    if (!url || !telegram_id) {
+        return res.status(400).json({ error: 'Не указан url или telegram_id' });
+    }
+
+    try {
+        const { error: deleteDbError } = await supabase
+            .from('publicVideos')
+            .delete()
+            .eq('url', url)
+            .eq('author_id', telegram_id);
+        if (deleteDbError) throw deleteDbError;
+
+        const fileName = url.split('/videos/')[1];
+        const { error: deleteStorageError } = await supabase.storage
+            .from('videos')
+            .remove([fileName]);
+        if (deleteStorageError) throw deleteStorageError;
+
+        res.json({ message: 'Видео успешно удалено' });
+    } catch (error) {
+        console.error('Ошибка удаления видео:', error.message);
+        res.status(500).json({ error: 'Ошибка удаления видео' });
+    }
+});
