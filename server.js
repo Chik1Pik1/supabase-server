@@ -19,7 +19,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-    console.error('Ошибка: SUPABASE_URL или SUPABASE_SERVICE_KEY не определены');
+    console.error('Ошибка: SUPABASE_URL или SUPABASE_KEY не определены');
     process.exit(1);
 }
 
