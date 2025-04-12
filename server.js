@@ -27,10 +27,10 @@ app.use((req, res, next) => {
 
 // Проверка переменных окружения
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+const supabaseKey = process.env.SUPABASE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-    console.error('Ошибка: SUPABASE_URL или SUPABASE_SERVICE_KEY не заданы');
+    console.error('Ошибка: SUPABASE_URL или SUPABASE_KEY не заданы');
     process.exit(1);
 }
 
