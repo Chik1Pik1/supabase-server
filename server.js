@@ -16,11 +16,11 @@ app.use(express.json());
 
 // Инициализация Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+const supabaseKey = process.env.SUPABASE_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-    console.error('Ошибка: SUPABASE_URL или SUPABASE_KEY не определены');
-    process.exit(1);
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+  console.error('Ошибка: SUPABASE_URL или SUPABASE_KEY не определены');
+  process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
