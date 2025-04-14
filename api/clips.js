@@ -6,7 +6,7 @@ const app = express();
 
 // Настройка CORS для Netlify
 app.use(cors({
-  origin: 'https://your-app.netlify.app', // Замените на ваш Netlify-домен
+  origin: 'https://resonant-torte-bf7a96.netlify.app',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type']
 }));
