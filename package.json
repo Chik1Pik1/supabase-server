@@ -9,11 +9,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "TG Clips Server",
+  "description": "",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
-    "axios": "^1.8.4",
-    "axios-retry": "^4.5.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
@@ -21,13 +19,5 @@
   },
   "devDependencies": {
     "jest": "^29.7.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Chik1Pik1/supabase-server.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Chik1Pik1/supabase-server/issues"
-  },
-  "homepage": "https://github.com/Chik1Pik1/supabase-server"
+  }
 }

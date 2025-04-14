@@ -3,7 +3,7 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const multer = require('multer');
-require('dotenv').config();
+const axios = require('axios');
 
 const app = express();
 
@@ -24,6 +24,34 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Функция модерации через Sightengine
+async function moderateContent(fileUrl) {
+    try {
+        const response = await axios.get('https://api.sightengine.com/1.0/check.json', {
+            params: {
+                url: fileUrl,
+                models: 'nudity-2.1,recreational_drug,medical,offensive-2.0,scam,face-attributes,gore-2.0,text,qr-content,violence,self-harm',
+                api_user: process.env.SIGHTENGINE_API_KEY,
+                api_secret: process.env.SIGHTENGINE_API_SECRET
+            }
+        });
+        const result = response.data;
+        console.log('Результат модерации:', JSON.stringify(result, null, 2));
+        return (
+            result.status === 'success' &&
+            !result.nudity?.raw &&
+            !result.violence?.moderate &&
+            !result.offensive?.probable &&
+            !result.gore?.probable &&
+            !result.drugs?.probable &&
+            !result.self_harm?.probable
+        );
+    } catch (error) {
+        console.error('Ошибка модерации:', error.response?.data || error.message);
+        return false;
+    }
+}
 
 // Тестовый маршрут
 app.get('/', (req, res) => {
@@ -179,18 +207,29 @@ app.post('/api/upload-video', upload.single('file'), async (req, res) => {
         return res.status(400).json({ error: 'Не указан telegram_id или файл видео' });
     }
 
+    if (!req.file.mimetype.startsWith('video/')) {
+        return res.status(400).json({ error: 'Загруженный файл не является видео' });
+    }
+
     try {
         // Загружаем видео в Supabase Storage
         const fileName = `${telegram_id}_${Date.now()}.mp4`;
         const { error: storageError } = await supabase.storage
             .from('videos')
             .upload(fileName, req.file.buffer, {
-                contentType: req.file.mimetype,
+                contentType: req.file.mimetype
             });
 
         if (storageError) throw storageError;
 
         const videoUrl = `${supabaseUrl}/storage/v1/object/public/videos/${fileName}`;
+
+        // Проверка через Sightengine
+        const isSafe = await moderateContent(videoUrl);
+        if (!isSafe) {
+            await supabase.storage.from('videos').remove([fileName]);
+            return res.status(403).json({ error: 'Видео не прошло модерацию' });
+        }
 
         // Сохраняем метаданные в таблицу publicVideos
         const { data, error } = await supabase
@@ -216,12 +255,15 @@ app.post('/api/upload-video', upload.single('file'), async (req, res) => {
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            await supabase.storage.from('videos').remove([fileName]); // Удаляем файл при ошибке БД
+            throw error;
+        }
 
         console.log('POST /api/upload-video - Успешно загружено:', data);
         res.json({ message: 'Видео успешно загружено', url: videoUrl });
     } catch (error) {
-        console.error('POST /api/upload-video - Ошибка:', error.message);
+        console.error('POST /api/upload-video - Ошибка:', { telegram_id, error: error.message });
         res.status(500).json({ error: 'Ошибка загрузки видео' });
     }
 });
@@ -232,6 +274,10 @@ app.get('/api/download-video', async (req, res) => {
 
     if (!url) {
         return res.status(400).json({ error: 'Не указан URL видео' });
+    }
+
+    if (!url.startsWith(`${supabaseUrl}/storage/v1/object/public/videos/`)) {
+        return res.status(400).json({ error: 'Недопустимый URL видео' });
     }
 
     try {
