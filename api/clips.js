@@ -45,4 +45,6 @@ app.post('/', async (req, res) => {
   res.json({ message: 'Clip added successfully', clip: data[0] });
 });
 
-module.exports = app;
+module.exports = (req, res) => {
+  res.json({ message: "Hello from clips!" });
+};
