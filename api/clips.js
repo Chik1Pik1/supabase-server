@@ -4,7 +4,6 @@ const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 
-// Настройка CORS для Netlify
 app.use(cors({
   origin: 'https://resonant-torte-bf7a96.netlify.app',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -12,13 +11,11 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Подключение к Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
-// GET: Получить все клипы
 app.get('/', async (req, res) => {
   const { data, error } = await supabase
     .from('clips')
@@ -29,7 +26,6 @@ app.get('/', async (req, res) => {
   res.json({ message: 'Clips fetched successfully', clips: data });
 });
 
-// POST: Добавить новый клип
 app.post('/', async (req, res) => {
   const { title, url } = req.body;
   if (!title || !url) {
