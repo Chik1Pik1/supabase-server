@@ -6,7 +6,7 @@ const app = express();
 
 // Настройка CORS для Netlify
 app.use(cors({
-  origin: 'https://resonant-torte-bf7a96.netlify.app', // Замените на ваш Netlify-домен
+  origin: 'https://resonant-torte-bf7a96.netlify.app',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type']
 }));
@@ -45,6 +45,4 @@ app.post('/', async (req, res) => {
   res.json({ message: 'Clip added successfully', clip: data[0] });
 });
 
-module.exports = (req, res) => {
-  res.json({ message: "Hello from clips!" });
-};
+module.exports = app;
