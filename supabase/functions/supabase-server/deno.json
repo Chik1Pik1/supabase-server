@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "axios": "npm:axios@^1.7.7",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.49.4",
+    "deno_formdata": "https://deno.land/x/deno_formdata@v0.2.0/mod.ts"
+  }
+}

@@ -3,7 +3,8 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
 const multer = require('multer');
-require('dotenv').config();
+const axios = require('axios');
+const FormData = require('form-data');
 
 const app = express();
 
@@ -24,6 +25,53 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Настройка Sightengine
+const sightengineApiUser = process.env.SIGHTENGINE_API_USER;
+const sightengineApiSecret = process.env.SIGHTENGINE_API_SECRET;
+
+if (!sightengineApiUser || !sightengineApiSecret) {
+    console.error('Ошибка: SIGHTENGINE_API_USER или SIGHTENGINE_API_SECRET не определены');
+    process.exit(1);
+}
+
+// Функция для модерации видео через Sightengine
+async function moderateVideo(file) {
+    try {
+        const formData = new FormData();
+        formData.append('media', file.buffer, {
+            filename: file.originalname,
+            contentType: file.mimetype,
+        });
+        formData.append('models', 'nudity-2.1,offensive,weapon,gore-2.0');
+        formData.append('api_user', sightengineApiUser);
+        formData.append('api_secret', sightengineApiSecret);
+
+        const response = await axios.post('https://api.sightengine.com/1.0/video/check-sync.json', formData, {
+            headers: {
+                ...formData.getHeaders(),
+            },
+        });
+
+        const result = response.data;
+        console.log('Sightengine result:', result);
+
+        // Проверяем, есть ли нежелательный контент
+        const hasNudity = result.summary?.nudity?.raw > 0.5;
+        const hasOffensive = result.summary?.offensive?.prob > 0.5;
+        const hasWeapon = result.summary?.weapon > 0.5;
+        const hasGore = result.summary?.gore?.prob > 0.5;
+
+        if (hasNudity || hasOffensive || hasWeapon || hasGore) {
+            throw new Error('Видео не прошло модерацию: обнаружен нежелательный контент');
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Ошибка модерации:', error.message);
+        throw error;
+    }
+}
 
 // Тестовый маршрут
 app.get('/', (req, res) => {
@@ -171,7 +219,7 @@ app.get('/api/get-channel', async (req, res) => {
     }
 });
 
-// Загрузка видео
+// Загрузка видео с модерацией
 app.post('/api/upload-video', upload.single('file'), async (req, res) => {
     const { telegram_id, description } = req.body;
 
@@ -180,6 +228,9 @@ app.post('/api/upload-video', upload.single('file'), async (req, res) => {
     }
 
     try {
+        // Модерация видео через Sightengine
+        await moderateVideo(req.file);
+
         // Загружаем видео в Supabase Storage
         const fileName = `${telegram_id}_${Date.now()}.mp4`;
         const { error: storageError } = await supabase.storage
@@ -222,7 +273,7 @@ app.post('/api/upload-video', upload.single('file'), async (req, res) => {
         res.json({ message: 'Видео успешно загружено', url: videoUrl });
     } catch (error) {
         console.error('POST /api/upload-video - Ошибка:', error.message);
-        res.status(500).json({ error: 'Ошибка загрузки видео' });
+        res.status(500).json({ error: error.message || 'Ошибка загрузки видео' });
     }
 });
 
