@@ -15,12 +15,17 @@ app.use(cors({
 
 app.use(express.json());
 
+// Корневой маршрут для предотвращения ошибки "Cannot GET /"
+app.get('/', (req, res) => {
+    res.status(200).json({ message: 'Добро пожаловать в API TGClips' });
+});
+
 // Инициализация Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Sightengine API credentials
+// Учетные данные Sightengine API
 const sightengineApiUser = process.env.SIGHTENGINE_API_USER;
 const sightengineApiSecret = process.env.SIGHTENGINE_API_SECRET;
 
@@ -36,8 +41,8 @@ app.get('/api/public-videos', async (req, res) => {
         if (error) throw error;
         res.json(data);
     } catch (error) {
-        console.error('Error fetching videos:', error);
-        res.status(500).json({ error: 'Failed to fetch videos' });
+        console.error('Ошибка при получении видео:', error);
+        res.status(500).json({ error: 'Не удалось получить видео' });
     }
 });
 
@@ -61,8 +66,8 @@ app.post('/api/update-video', async (req, res) => {
         if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
-        console.error('Error updating video:', error);
-        res.status(500).json({ error: 'Failed to update video' });
+        console.error('Ошибка при обновлении видео:', error);
+        res.status(500).json({ error: 'Не удалось обновить видео' });
     }
 });
 
@@ -80,35 +85,35 @@ app.post('/api/moderate-video', async (req, res) => {
         });
         res.json(response.data);
     } catch (error) {
-        console.error('Error moderating video:', error);
-        res.status(500).json({ error: 'Failed to moderate video' });
+        console.error('Ошибка при модерации видео:', error);
+        res.status(500).json({ error: 'Не удалось провести модерацию видео' });
     }
 });
 
 // Регистрация канала
 app.post('/api/register-channel', async (req, res) => {
-    const { userId, channelName } = req.body;
+    const { telegram_id, channel_link } = req.body;
     try {
         const { data, error } = await supabase
             .from('channels')
-            .upsert({ user_id: userId, channel_name: channelName });
+            .upsert({ user_id: telegram_id, channel_name: channel_link });
 
         if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
-        console.error('Error registering channel:', error);
-        res.status(500).json({ error: 'Failed to register channel' });
+        console.error('Ошибка при регистрации канала:', error);
+        res.status(500).json({ error: 'Не удалось зарегистрировать канал' });
     }
 });
 
 // Загрузка видео
 app.post('/api/upload-video', async (req, res) => {
-    const { userId, videoUrl, title, description } = req.body;
+    const { telegram_id, videoUrl, title, description } = req.body;
     try {
         const { data, error } = await supabase
             .from('videos')
             .insert({
-                user_id: userId,
+                user_id: telegram_id,
                 url: videoUrl,
                 title,
                 description,
@@ -119,13 +124,31 @@ app.post('/api/upload-video', async (req, res) => {
         if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
-        console.error('Error uploading video:', error);
-        res.status(500).json({ error: 'Failed to upload video' });
+        console.error('Ошибка при загрузке видео:', error);
+        res.status(500).json({ error: 'Не удалось загрузить видео' });
+    }
+});
+
+// Удаление видео
+app.post('/api/delete-video', async (req, res) => {
+    const { url, telegram_id } = req.body;
+    try {
+        const { data, error } = await supabase
+            .from('videos')
+            .delete()
+            .eq('url', url)
+            .eq('user_id', telegram_id);
+
+        if (error) throw error;
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error('Ошибка при удалении видео:', error);
+        res.status(500).json({ error: 'Не удалось удалить видео' });
     }
 });
 
 // Запуск сервера
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Сервер запущен на порту ${PORT}`);
 });
