@@ -13,17 +13,16 @@ app.use(cors({
         'https://web.telegram.org'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'X-Requested-With'],
     credentials: true
 }));
 
 app.options('*', cors());
 
-// Парсинг JSON и URL-encoded данных
+// Парсинг JSON
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Логирование всех входящих запросов
+// Логирование запросов
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
@@ -38,7 +37,7 @@ if (!supabaseUrl || !supabaseKey) {
 }
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Проверка подключения к Supabase
+// Проверка Supabase
 supabase
     .from('publicVideos')
     .select('url', { count: 'exact', head: true })
@@ -47,7 +46,7 @@ supabase
         if (error) {
             console.error('Ошибка проверки таблицы publicVideos:', error.message);
         } else {
-            console.log('Таблица publicVideos успешно подключена');
+            console.log('Таблица publicVideos подключена');
         }
     })
     .catch(err => console.error('Критическая ошибка Supabase:', err));
@@ -67,19 +66,12 @@ app.get('/api/public-videos', async (req, res) => {
             .eq('is_public', true)
             .order('timestamp', { ascending: false });
 
-        if (error) {
-            console.error('Supabase error:', error.message);
-            throw new Error(error.message);
-        }
-
+        if (error) throw new Error(error.message);
         console.log(`Возвращено ${data.length} видео`);
         res.status(200).json(data);
     } catch (error) {
-        console.error('Ошибка /api/public-videos:', error.message, error.stack);
-        res.status(500).json({
-            error: 'Failed to fetch videos',
-            details: error.message
-        });
+        console.error('Ошибка /api/public-videos:', error.message);
+        res.status(500).json({ error: 'Failed to fetch videos', details: error.message });
     }
 });
 
@@ -108,7 +100,7 @@ app.post('/api/update-video', async (req, res) => {
     }
 
     try {
-        console.log('Запрос на /api/update-video:', { url, views, likes, dislikes });
+        console.log('Запрос на /api/update-video:', { url });
         const { data, error } = await supabase
             .from('publicVideos')
             .upsert(
@@ -133,19 +125,12 @@ app.post('/api/update-video', async (req, res) => {
             )
             .select();
 
-        if (error) {
-            console.error('Supabase error:', error.message);
-            throw new Error(error.message);
-        }
-
+        if (error) throw new Error(error.message);
         console.log('Видео обновлено:', data);
         res.status(200).json({ success: true, data });
     } catch (error) {
-        console.error('Ошибка /api/update-video:', error.message, error.stack);
-        res.status(500).json({
-            error: 'Failed to update video',
-            details: error.message
-        });
+        console.error('Ошибка /api/update-video:', error.message);
+        res.status(500).json({ error: 'Failed to update video', details: error.message });
     }
 });
 
@@ -153,7 +138,7 @@ app.post('/api/update-video', async (req, res) => {
 app.post('/api/register-channel', async (req, res) => {
     const { telegram_id, channel_link } = req.body;
     if (!telegram_id || !channel_link) {
-        console.warn('Отсутствует telegram_id или channel_link в /api/register-channel');
+        console.warn('Отсутствует telegram_id или channel_link');
         return res.status(400).json({ error: 'telegram_id and channel_link are required' });
     }
 
@@ -167,19 +152,12 @@ app.post('/api/register-channel', async (req, res) => {
             )
             .select();
 
-        if (error) {
-            console.error('Supabase error:', error.message);
-            throw new Error(error.message);
-        }
-
+        if (error) throw new Error(error.message);
         console.log('Канал зарегистрирован:', data);
         res.status(200).json({ success: true, data });
     } catch (error) {
-        console.error('Ошибка /api/register-channel:', error.message, error.stack);
-        res.status(500).json({
-            error: 'Failed to register channel',
-            details: error.message
-        });
+        console.error('Ошибка /api/register-channel:', error.message);
+        res.status(500).json({ error: 'Failed to register channel', details: error.message });
     }
 });
 
@@ -187,12 +165,12 @@ app.post('/api/register-channel', async (req, res) => {
 app.post('/api/upload-video', async (req, res) => {
     const { telegram_id, videoUrl, title = '', description = '' } = req.body;
     if (!telegram_id || !videoUrl) {
-        console.warn('Отсутствует telegram_id или videoUrl в /api/upload-video');
+        console.warn('Отсутствует telegram_id или videoUrl');
         return res.status(400).json({ error: 'telegram_id and videoUrl are required' });
     }
 
     try {
-        console.log('Запрос на /api/upload-video:', { telegram_id, videoUrl, title, description });
+        console.log('Запрос на /api/upload-video:', { telegram_id, videoUrl, title });
         const { data, error } = await supabase
             .from('publicVideos')
             .insert({
@@ -218,19 +196,12 @@ app.post('/api/upload-video', async (req, res) => {
             })
             .select();
 
-        if (error) {
-            console.error('Supabase error:', error.message);
-            throw new Error(error.message);
-        }
-
+        if (error) throw new Error(error.message);
         console.log('Видео загружено:', data);
         res.status(200).json({ success: true, data });
     } catch (error) {
-        console.error('Ошибка /api/upload-video:', error.message, error.stack);
-        res.status(500).json({
-            error: 'Failed to upload video',
-            details: error.message
-        });
+        console.error('Ошибка /api/upload-video:', error.message);
+        res.status(500).json({ error: 'Failed to upload video', details: error.message });
     }
 });
 
@@ -238,7 +209,7 @@ app.post('/api/upload-video', async (req, res) => {
 app.post('/api/delete-video', async (req, res) => {
     const { url, telegram_id } = req.body;
     if (!url || !telegram_id) {
-        console.warn('Отсутствует url или telegram_id в /api/delete-video');
+        console.warn('Отсутствует url или telegram_id');
         return res.status(400).json({ error: 'url and telegram_id are required' });
     }
 
@@ -251,23 +222,16 @@ app.post('/api/delete-video', async (req, res) => {
             .eq('author_id', telegram_id)
             .select();
 
-        if (error) {
-            console.error('Supabase error:', error.message);
-            throw new Error(error.message);
-        }
-
+        if (error) throw new Error(error.message);
         console.log('Видео удалено:', data);
         res.status(200).json({ success: true, data });
     } catch (error) {
-        console.error('Ошибка /api/delete-video:', error.message, error.stack);
-        res.status(500).json({
-            error: 'Failed to delete video',
-            details: error.message
-        });
+        console.error('Ошибка /api/delete-video:', error.message);
+        res.status(500).json({ error: 'Failed to delete video', details: error.message });
     }
 });
 
-// Обработка несуществующих маршрутов
+// Обработка 404
 app.use((req, res) => {
     console.warn(`Маршрут не найден: ${req.method} ${req.url}`);
     res.status(404).json({ error: 'Route not found' });
@@ -275,11 +239,8 @@ app.use((req, res) => {
 
 // Глобальный обработчик ошибок
 app.use((err, req, res, next) => {
-    console.error('Server error:', err.message, err.stack);
-    res.status(500).json({
-        error: 'Server error',
-        details: err.message
-    });
+    console.error('Server error:', err.message);
+    res.status(500).json({ error: 'Server error', details: err.message });
 });
 
 // Запуск сервера
