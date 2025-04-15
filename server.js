@@ -63,7 +63,7 @@ app.get('/api/public-videos', async (req, res) => {
       .from('publicVideos')
       .select('*')
       .eq('is_public', true)
-      .order('created_at', { ascending: false });
+      .order('timestamp', { ascending: false }); // Заменили created_at на timestamp
 
     if (error) {
       console.error('Ошибка Supabase:', error);
@@ -206,7 +206,7 @@ app.post('/api/upload-video', async (req, res) => {
     const { data, error } = await supabase
       .from('publicVideos')
       .insert({
-        user_id: telegram_id,
+        author_id: telegram_id, // Заменили user_id на author_id
         url: videoUrl,
         title,
         description,
@@ -217,7 +217,7 @@ app.post('/api/upload-video', async (req, res) => {
         user_likes: [],
         user_dislikes: [],
         comments: [],
-        created_at: new Date().toISOString(),
+        timestamp: new Date().toISOString(), // Заменили created_at на timestamp
         updated_at: new Date().toISOString(),
       })
       .select();
@@ -251,7 +251,7 @@ app.post('/api/delete-video', async (req, res) => {
       .from('publicVideos')
       .delete()
       .eq('url', url)
-      .eq('user_id', telegram_id)
+      .eq('author_id', telegram_id) // Заменили user_id на author_id
       .select();
 
     if (error) {
