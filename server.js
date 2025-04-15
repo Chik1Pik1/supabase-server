@@ -37,7 +37,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Проверка подключения к Supabase
 supabase
   .from('publicVideos')
-  .select('url', { count: 'exact', head: true }) // Проверяем только url
+  .select('url', { count: 'exact', head: true })
   .limit(0)
   .then(({ error }) => {
     if (error) {
@@ -51,6 +51,8 @@ supabase
 // Учетные данные Sightengine API
 const sightengineApiUser = process.env.SIGHTENGINE_API_USER;
 const sightengineApiSecret = process.env.SIGHTENGINE_API_SECRET;
+console.log('Sightengine API User:', sightengineApiUser ? 'Set' : 'Not set');
+console.log('Sightengine API Secret:', sightengineApiSecret ? 'Set' : 'Not set');
 if (!sightengineApiUser || !sightengineApiSecret) {
   console.warn('Предупреждение: Sightengine API ключи не заданы, модерация видео недоступна');
 }
@@ -63,7 +65,7 @@ app.get('/api/public-videos', async (req, res) => {
       .from('publicVideos')
       .select('*')
       .eq('is_public', true)
-      .order('timestamp', { ascending: false }); // Заменили created_at на timestamp
+      .order('timestamp', { ascending: false });
 
     if (error) {
       console.error('Ошибка Supabase:', error);
@@ -141,7 +143,7 @@ app.post('/api/moderate-video', async (req, res) => {
 
   try {
     console.log('Запрос /api/moderate-video:', { videoUrl });
-    const response = await axios.get('https://api.sightengine.com/1.0/video/check.json', {
+    const response = await axios.get('https://api.sightengine.com/1.0/video/check-sync.json', {
       params: {
         url: videoUrl,
         api_user: sightengineApiUser,
@@ -206,18 +208,18 @@ app.post('/api/upload-video', async (req, res) => {
     const { data, error } = await supabase
       .from('publicVideos')
       .insert({
-        author_id: telegram_id, // Заменили user_id на author_id
+        author_id: telegram_id,
         url: videoUrl,
         title,
         description,
-        is_public: false,
+        is_public: true,
         views: [],
         likes: 0,
         dislikes: 0,
         user_likes: [],
         user_dislikes: [],
         comments: [],
-        timestamp: new Date().toISOString(), // Заменили created_at на timestamp
+        timestamp: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .select();
@@ -251,7 +253,7 @@ app.post('/api/delete-video', async (req, res) => {
       .from('publicVideos')
       .delete()
       .eq('url', url)
-      .eq('author_id', telegram_id) // Заменили user_id на author_id
+      .eq('author_id', telegram_id)
       .select();
 
     if (error) {
