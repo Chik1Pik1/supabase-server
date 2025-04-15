@@ -6,15 +6,12 @@ require('dotenv').config();
 
 const app = express();
 
-// Настройка CORS для Netlify
+// Настройка CORS
 app.use(cors({
     origin: 'https://resonant-torte-bf7a96.netlify.app',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
-// Поддержка preflight-запросов
-app.options('*', cors());
 
 app.use(express.json());
 
@@ -36,10 +33,7 @@ app.get('/api/public-videos', async (req, res) => {
             .eq('is_public', true)
             .order('created_at', { ascending: false });
 
-        if (error) {
-            throw error;
-        }
-
+        if (error) throw error;
         res.json(data);
     } catch (error) {
         console.error('Error fetching videos:', error);
@@ -50,7 +44,6 @@ app.get('/api/public-videos', async (req, res) => {
 // Обновление данных видео
 app.post('/api/update-video', async (req, res) => {
     const { url, views, likes, dislikes, user_likes, user_dislikes, comments } = req.body;
-
     try {
         const { data, error } = await supabase
             .from('videos')
@@ -65,10 +58,7 @@ app.post('/api/update-video', async (req, res) => {
             })
             .eq('url', url);
 
-        if (error) {
-            throw error;
-        }
-
+        if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
         console.error('Error updating video:', error);
@@ -79,7 +69,6 @@ app.post('/api/update-video', async (req, res) => {
 // Проверка контента через Sightengine
 app.post('/api/moderate-video', async (req, res) => {
     const { videoUrl } = req.body;
-
     try {
         const response = await axios.get('https://api.sightengine.com/1.0/video/check.json', {
             params: {
@@ -89,7 +78,6 @@ app.post('/api/moderate-video', async (req, res) => {
                 categories: 'nudity,violence,drugs,weapons'
             }
         });
-
         res.json(response.data);
     } catch (error) {
         console.error('Error moderating video:', error);
@@ -100,16 +88,12 @@ app.post('/api/moderate-video', async (req, res) => {
 // Регистрация канала
 app.post('/api/register-channel', async (req, res) => {
     const { userId, channelName } = req.body;
-
     try {
         const { data, error } = await supabase
             .from('channels')
             .upsert({ user_id: userId, channel_name: channelName });
 
-        if (error) {
-            throw error;
-        }
-
+        if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
         console.error('Error registering channel:', error);
@@ -120,7 +104,6 @@ app.post('/api/register-channel', async (req, res) => {
 // Загрузка видео
 app.post('/api/upload-video', async (req, res) => {
     const { userId, videoUrl, title, description } = req.body;
-
     try {
         const { data, error } = await supabase
             .from('videos')
@@ -133,10 +116,7 @@ app.post('/api/upload-video', async (req, res) => {
                 created_at: new Date().toISOString()
             });
 
-        if (error) {
-            throw error;
-        }
-
+        if (error) throw error;
         res.json({ success: true, data });
     } catch (error) {
         console.error('Error uploading video:', error);
