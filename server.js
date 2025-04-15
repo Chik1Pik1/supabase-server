@@ -9,21 +9,26 @@ const app = express();
 // Настройка CORS
 app.use(cors({
   origin: [
-    'https://resonant-torte-bf7a96.netlify.app', // Основной фронтенд
-    'http://localhost:3000', // Для локальной разработки
-    'https://web.telegram.org' // Для Telegram Web App
+    'https://resonant-torte-bf7a96.netlify.app',
+    'http://localhost:3000',
+    'https://web.telegram.org'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'], // Добавлен X-Requested-With
-  credentials: true // Поддержка авторизации и кук
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
 }));
 
-// Обработка предварительных запросов OPTIONS
 app.options('*', cors());
 
 app.use(express.json());
 
-// Корневой маршрут для проверки работы API
+// Логирование всех входящих запросов для диагностики
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// Корневой маршрут
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Добро пожаловать в API TGClips' });
 });
@@ -275,6 +280,7 @@ app.post('/api/delete-video', async (req, res) => {
 
 // Обработка несуществующих маршрутов
 app.use((req, res) => {
+  console.warn(`Маршрут не найден: ${req.method} ${req.url}`);
   res.status(404).json({ error: 'Маршрут не найден' });
 });
 
