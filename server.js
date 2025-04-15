@@ -1,302 +1,151 @@
-require('dotenv').config();
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
 const cors = require('cors');
-const multer = require('multer');
+const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
+require('dotenv').config();
 
 const app = express();
 
-// Настройка multer для обработки файлов
-const upload = multer({ storage: multer.memoryStorage() });
+// Настройка CORS для Netlify
+app.use(cors({
+    origin: 'https://resonant-torte-bf7a96.netlify.app',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
-// Настройка CORS
-app.use(cors());
+// Поддержка preflight-запросов
+app.options('*', cors());
+
 app.use(express.json());
 
 // Инициализация Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-    console.error('Ошибка: SUPABASE_URL или SUPABASE_KEY не определены');
-    process.exit(1);
-}
-
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Функция модерации через Sightengine
-async function moderateContent(fileUrl) {
-    try {
-        const response = await axios.get('https://api.sightengine.com/1.0/check.json', {
-            params: {
-                url: fileUrl,
-                models: 'nudity-2.1,recreational_drug,medical,offensive-2.0,scam,face-attributes,gore-2.0,text,qr-content,violence,self-harm',
-                api_user: process.env.SIGHTENGINE_API_KEY,
-                api_secret: process.env.SIGHTENGINE_API_SECRET
-            }
-        });
-        const result = response.data;
-        console.log('Результат модерации:', JSON.stringify(result, null, 2));
-        return (
-            result.status === 'success' &&
-            !result.nudity?.raw &&
-            !result.violence?.moderate &&
-            !result.offensive?.probable &&
-            !result.gore?.probable &&
-            !result.drugs?.probable &&
-            !result.self_harm?.probable
-        );
-    } catch (error) {
-        console.error('Ошибка модерации:', error.response?.data || error.message);
-        return false;
-    }
-}
-
-// Тестовый маршрут
-app.get('/', (req, res) => {
-    res.send('Supabase сервер работает!');
-});
+// Sightengine API credentials
+const sightengineApiUser = process.env.SIGHTENGINE_API_USER;
+const sightengineApiSecret = process.env.SIGHTENGINE_API_SECRET;
 
 // Получение публичных видео
 app.get('/api/public-videos', async (req, res) => {
     try {
         const { data, error } = await supabase
-            .from('publicVideos')
+            .from('videos')
             .select('*')
-            .order('timestamp', { ascending: false })
-            .limit(10);
+            .eq('is_public', true)
+            .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
-        console.log('GET /api/public-videos - Видео из базы:', data);
         res.json(data);
     } catch (error) {
-        console.error('GET /api/public-videos - Ошибка:', error.message);
-        res.status(500).json({ error: 'Не удалось загрузить видео' });
-    }
-});
-
-// Регистрация канала
-app.post('/api/register-channel', async (req, res) => {
-    const { telegram_id, channel_link } = req.body;
-
-    if (!telegram_id || !channel_link) {
-        return res.status(400).json({ error: 'Не указан telegram_id или channel_link' });
-    }
-
-    try {
-        const { data, error } = await supabase
-            .from('users')
-            .upsert({ telegram_id, channel_link }, { onConflict: 'telegram_id' })
-            .select();
-
-        if (error) throw error;
-
-        console.log('POST /api/register-channel - Успешно:', data);
-        res.json({ message: 'Канал успешно зарегистрирован', data });
-    } catch (error) {
-        console.error('POST /api/register-channel - Ошибка:', error.message);
-        res.status(500).json({ error: 'Ошибка при регистрации канала' });
+        console.error('Error fetching videos:', error);
+        res.status(500).json({ error: 'Failed to fetch videos' });
     }
 });
 
 // Обновление данных видео
 app.post('/api/update-video', async (req, res) => {
-    const {
-        url, views, likes, dislikes, user_likes, user_dislikes, comments,
-        shares, view_time, replays, duration, last_position, chat_messages, description
-    } = req.body;
-
-    if (!url) {
-        return res.status(400).json({ error: 'Не указан URL видео' });
-    }
+    const { url, views, likes, dislikes, user_likes, user_dislikes, comments } = req.body;
 
     try {
         const { data, error } = await supabase
-            .from('publicVideos')
-            .upsert({
-                url,
+            .from('videos')
+            .update({
                 views,
                 likes,
                 dislikes,
                 user_likes,
                 user_dislikes,
                 comments,
-                shares,
-                view_time,
-                replays,
-                duration,
-                last_position,
-                chat_messages,
-                description,
-                timestamp: new Date().toISOString()
-            }, { onConflict: 'url' })
-            .select();
+                updated_at: new Date().toISOString()
+            })
+            .eq('url', url);
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
-        console.log('POST /api/update-video - Успешно обновлено:', data);
-        res.json({ message: 'Данные видео обновлены', data });
+        res.json({ success: true, data });
     } catch (error) {
-        console.error('POST /api/update-video - Ошибка:', error.message);
-        res.status(500).json({ error: 'Ошибка обновления видео' });
+        console.error('Error updating video:', error);
+        res.status(500).json({ error: 'Failed to update video' });
     }
 });
 
-// Удаление видео
-app.post('/api/delete-video', async (req, res) => {
-    const { url, telegram_id } = req.body;
-    if (!url || !telegram_id) {
-        return res.status(400).json({ error: 'Не указан url или telegram_id' });
-    }
+// Проверка контента через Sightengine
+app.post('/api/moderate-video', async (req, res) => {
+    const { videoUrl } = req.body;
 
     try {
-        const { error: deleteDbError } = await supabase
-            .from('publicVideos')
-            .delete()
-            .eq('url', url)
-            .eq('author_id', telegram_id);
-        if (deleteDbError) throw deleteDbError;
+        const response = await axios.get('https://api.sightengine.com/1.0/video/check.json', {
+            params: {
+                url: videoUrl,
+                api_user: sightengineApiUser,
+                api_secret: sightengineApiSecret,
+                categories: 'nudity,violence,drugs,weapons'
+            }
+        });
 
-        const fileName = url.split('/videos/')[1];
-        const { error: deleteStorageError } = await supabase.storage
-            .from('videos')
-            .remove([fileName]);
-        if (deleteStorageError) throw deleteStorageError;
-
-        console.log('POST /api/delete-video - Успешно удалено:', url);
-        res.json({ message: 'Видео успешно удалено' });
+        res.json(response.data);
     } catch (error) {
-        console.error('POST /api/delete-video - Ошибка:', error.message);
-        res.status(500).json({ error: 'Ошибка удаления видео' });
+        console.error('Error moderating video:', error);
+        res.status(500).json({ error: 'Failed to moderate video' });
     }
 });
 
-// Получение ссылки на канал
-app.get('/api/get-channel', async (req, res) => {
-    const { telegram_id } = req.query;
-
-    if (!telegram_id) {
-        return res.status(400).json({ error: 'Не указан telegram_id' });
-    }
+// Регистрация канала
+app.post('/api/register-channel', async (req, res) => {
+    const { userId, channelName } = req.body;
 
     try {
         const { data, error } = await supabase
-            .from('users')
-            .select('channel_link')
-            .eq('telegram_id', telegram_id)
-            .single();
+            .from('channels')
+            .upsert({ user_id: userId, channel_name: channelName });
 
-        if (error) throw error;
-        if (!data) return res.status(404).json({ error: 'Канал не найден' });
+        if (error) {
+            throw error;
+        }
 
-        console.log('GET /api/get-channel - Успешно:', data);
-        res.json({ channel_link: data.channel_link });
+        res.json({ success: true, data });
     } catch (error) {
-        console.error('GET /api/get-channel - Ошибка:', error.message);
-        res.status(500).json({ error: 'Ошибка получения канала' });
+        console.error('Error registering channel:', error);
+        res.status(500).json({ error: 'Failed to register channel' });
     }
 });
 
 // Загрузка видео
-app.post('/api/upload-video', upload.single('file'), async (req, res) => {
-    const { telegram_id, description } = req.body;
-
-    if (!telegram_id || !req.file) {
-        return res.status(400).json({ error: 'Не указан telegram_id или файл видео' });
-    }
-
-    if (!req.file.mimetype.startsWith('video/')) {
-        return res.status(400).json({ error: 'Загруженный файл не является видео' });
-    }
+app.post('/api/upload-video', async (req, res) => {
+    const { userId, videoUrl, title, description } = req.body;
 
     try {
-        // Загружаем видео в Supabase Storage
-        const fileName = `${telegram_id}_${Date.now()}.mp4`;
-        const { error: storageError } = await supabase.storage
+        const { data, error } = await supabase
             .from('videos')
-            .upload(fileName, req.file.buffer, {
-                contentType: req.file.mimetype
+            .insert({
+                user_id: userId,
+                url: videoUrl,
+                title,
+                description,
+                is_public: false,
+                created_at: new Date().toISOString()
             });
 
-        if (storageError) throw storageError;
-
-        const videoUrl = `${supabaseUrl}/storage/v1/object/public/videos/${fileName}`;
-
-        // Проверка через Sightengine
-        const isSafe = await moderateContent(videoUrl);
-        if (!isSafe) {
-            await supabase.storage.from('videos').remove([fileName]);
-            return res.status(403).json({ error: 'Видео не прошло модерацию' });
-        }
-
-        // Сохраняем метаданные в таблицу publicVideos
-        const { data, error } = await supabase
-            .from('publicVideos')
-            .insert({
-                url: videoUrl,
-                author_id: telegram_id,
-                description: description || '',
-                views: [],
-                likes: 0,
-                dislikes: 0,
-                user_likes: [],
-                user_dislikes: [],
-                comments: [],
-                shares: 0,
-                view_time: 0,
-                replays: 0,
-                duration: 0,
-                last_position: 0,
-                chat_messages: [],
-                timestamp: new Date().toISOString()
-            })
-            .select()
-            .single();
-
         if (error) {
-            await supabase.storage.from('videos').remove([fileName]); // Удаляем файл при ошибке БД
             throw error;
         }
 
-        console.log('POST /api/upload-video - Успешно загружено:', data);
-        res.json({ message: 'Видео успешно загружено', url: videoUrl });
+        res.json({ success: true, data });
     } catch (error) {
-        console.error('POST /api/upload-video - Ошибка:', { telegram_id, error: error.message });
-        res.status(500).json({ error: 'Ошибка загрузки видео' });
-    }
-});
-
-// Скачивание видео
-app.get('/api/download-video', async (req, res) => {
-    const { url } = req.query;
-
-    if (!url) {
-        return res.status(400).json({ error: 'Не указан URL видео' });
-    }
-
-    if (!url.startsWith(`${supabaseUrl}/storage/v1/object/public/videos/`)) {
-        return res.status(400).json({ error: 'Недопустимый URL видео' });
-    }
-
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Ошибка загрузки видео');
-
-        const fileName = url.split('/').pop() || `video_${Date.now()}.mp4`;
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-        res.setHeader('Content-Type', response.headers.get('content-type') || 'video/mp4');
-
-        response.body.pipe(res);
-    } catch (error) {
-        console.error('GET /api/download-video - Ошибка:', error.message);
-        res.status(500).json({ error: 'Ошибка скачивания видео' });
+        console.error('Error uploading video:', error);
+        res.status(500).json({ error: 'Failed to upload video' });
     }
 });
 
 // Запуск сервера
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
