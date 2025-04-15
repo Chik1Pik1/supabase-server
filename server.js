@@ -12,9 +12,12 @@ app.use(
     origin: [
       'https://resonant-torte-bf7a96.netlify.app',
       'http://localhost:3000',
+      'https://web.telegram.org', // Добавили для Telegram Web App
+      '*', // Временное разрешение всех источников для тестов
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true, // Если нужны куки или авторизация
   })
 );
 
@@ -51,8 +54,6 @@ supabase
 // Учетные данные Sightengine API
 const sightengineApiUser = process.env.SIGHTENGINE_API_USER;
 const sightengineApiSecret = process.env.SIGHTENGINE_API_SECRET;
-console.log('Sightengine API User:', sightengineApiUser ? 'Set' : 'Not set');
-console.log('Sightengine API Secret:', sightengineApiSecret ? 'Set' : 'Not set');
 if (!sightengineApiUser || !sightengineApiSecret) {
   console.warn('Предупреждение: Sightengine API ключи не заданы, модерация видео недоступна');
 }
