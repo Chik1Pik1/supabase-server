@@ -7,23 +7,23 @@ require('dotenv').config();
 const app = express();
 
 // Настройка CORS
-app.use(
-  cors({
-    origin: [
-      'https://resonant-torte-bf7a96.netlify.app',
-      'http://localhost:3000',
-      'https://web.telegram.org', // Добавили для Telegram Web App
-      '*', // Временное разрешение всех источников для тестов
-    ],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true, // Если нужны куки или авторизация
-  })
-);
+app.use(cors({
+  origin: [
+    'https://resonant-torte-bf7a96.netlify.app', // Основной фронтенд
+    'http://localhost:3000', // Для локальной разработки
+    'https://web.telegram.org' // Для Telegram Web App
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'], // Добавлен X-Requested-With
+  credentials: true // Поддержка авторизации и кук
+}));
+
+// Обработка предварительных запросов OPTIONS
+app.options('*', cors());
 
 app.use(express.json());
 
-// Корневой маршрут
+// Корневой маршрут для проверки работы API
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Добро пожаловать в API TGClips' });
 });
@@ -32,7 +32,7 @@ app.get('/', (req, res) => {
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 if (!supabaseUrl || !supabaseKey) {
-  console.error('Ошибка: SUPABASE_URL или SUPABASE_KEY не заданы');
+  console.error('Ошибка: Не заданы SUPABASE_URL или SUPABASE_KEY');
   process.exit(1);
 }
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -46,22 +46,22 @@ supabase
     if (error) {
       console.error('Ошибка проверки таблицы publicVideos:', error.message);
     } else {
-      console.log('Таблица publicVideos доступна в Supabase');
+      console.log('Таблица publicVideos успешно подключена');
     }
   })
   .catch((err) => console.error('Критическая ошибка Supabase:', err));
 
-// Учетные данные Sightengine API
+// Настройка Sightengine API
 const sightengineApiUser = process.env.SIGHTENGINE_API_USER;
 const sightengineApiSecret = process.env.SIGHTENGINE_API_SECRET;
 if (!sightengineApiUser || !sightengineApiSecret) {
-  console.warn('Предупреждение: Sightengine API ключи не заданы, модерация видео недоступна');
+  console.warn('Предупреждение: Ключи Sightengine API не заданы, модерация видео отключена');
 }
 
 // Получение публичных видео
 app.get('/api/public-videos', async (req, res) => {
   try {
-    console.log('Запрос /api/public-videos');
+    console.log('Получен запрос на /api/public-videos');
     const { data, error } = await supabase
       .from('publicVideos')
       .select('*')
@@ -69,17 +69,17 @@ app.get('/api/public-videos', async (req, res) => {
       .order('timestamp', { ascending: false });
 
     if (error) {
-      console.error('Ошибка Supabase:', error);
-      throw new Error(`Supabase ошибка: ${error.message}`);
+      console.error('Ошибка Supabase:', error.message);
+      throw new Error(`Ошибка Supabase: ${error.message}`);
     }
 
-    console.log(`Найдено видео: ${data.length}`);
+    console.log(`Возвращено ${data.length} видео`);
     res.json(data);
   } catch (error) {
-    console.error('Ошибка при получении видео:', error.message, error.stack);
+    console.error('Ошибка получения видео:', error.message, error.stack);
     res.status(500).json({
-      error: 'Не удалось получить видео',
-      details: error.message,
+      error: 'Не удалось загрузить видео',
+      details: error.message
     });
   }
 });
@@ -93,13 +93,13 @@ app.post('/api/update-video', async (req, res) => {
     dislikes = 0,
     user_likes = [],
     user_dislikes = [],
-    comments = [],
+    comments = []
   } = req.body;
 
   try {
-    console.log('Запрос /api/update-video:', { url, views, likes, dislikes });
+    console.log('Запрос на /api/update-video:', { url, views, likes, dislikes });
     if (!url) {
-      return res.status(400).json({ error: 'Поле url обязательно' });
+      return res.status(400).json({ error: 'URL обязателен' });
     }
 
     const { data, error } = await supabase
@@ -113,53 +113,53 @@ app.post('/api/update-video', async (req, res) => {
           user_likes,
           user_dislikes,
           comments,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         },
         { onConflict: 'url' }
       )
       .select();
 
     if (error) {
-      console.error('Ошибка Supabase:', error);
-      throw new Error(`Supabase ошибка: ${error.message}`);
+      console.error('Ошибка Supabase:', error.message);
+      throw new Error(`Ошибка Supabase: ${error.message}`);
     }
 
-    console.log('Обновлено видео:', data);
+    console.log('Видео обновлено:', data);
     res.json({ success: true, data });
   } catch (error) {
-    console.error('Ошибка при обновлении видео:', error.message, error.stack);
+    console.error('Ошибка обновления видео:', error.message, error.stack);
     res.status(500).json({
       error: 'Не удалось обновить видео',
-      details: error.message,
+      details: error.message
     });
   }
 });
 
-// Проверка контента через Sightengine
+// Модерация видео через Sightengine
 app.post('/api/moderate-video', async (req, res) => {
   const { videoUrl } = req.body;
   if (!videoUrl) {
-    return res.status(400).json({ error: 'Поле videoUrl обязательно' });
+    return res.status(400).json({ error: 'videoUrl обязателен' });
   }
 
   try {
-    console.log('Запрос /api/moderate-video:', { videoUrl });
+    console.log('Запрос на /api/moderate-video:', { videoUrl });
     const response = await axios.get('https://api.sightengine.com/1.0/video/check-sync.json', {
       params: {
         url: videoUrl,
         api_user: sightengineApiUser,
         api_secret: sightengineApiSecret,
-        categories: 'nudity,violence,drugs,weapons',
-      },
+        categories: 'nudity,violence,drugs,weapons'
+      }
     });
 
-    console.log('Ответ Sightengine:', response.data);
+    console.log('Результат модерации:', response.data);
     res.json(response.data);
   } catch (error) {
-    console.error('Ошибка при модерации видео:', error.message, error.stack);
+    console.error('Ошибка модерации:', error.message, error.stack);
     res.status(500).json({
-      error: 'Не удалось провести модерацию видео',
-      details: error.response?.data || error.message,
+      error: 'Не удалось выполнить модерацию',
+      details: error.response?.data || error.message
     });
   }
 });
@@ -168,11 +168,11 @@ app.post('/api/moderate-video', async (req, res) => {
 app.post('/api/register-channel', async (req, res) => {
   const { telegram_id, channel_link } = req.body;
   if (!telegram_id || !channel_link) {
-    return res.status(400).json({ error: 'Поля telegram_id и channel_link обязательны' });
+    return res.status(400).json({ error: 'telegram_id и channel_link обязательны' });
   }
 
   try {
-    console.log('Запрос /api/register-channel:', { telegram_id, channel_link });
+    console.log('Запрос на /api/register-channel:', { telegram_id, channel_link });
     const { data, error } = await supabase
       .from('channels')
       .upsert(
@@ -182,17 +182,17 @@ app.post('/api/register-channel', async (req, res) => {
       .select();
 
     if (error) {
-      console.error('Ошибка Supabase:', error);
-      throw new Error(`Supabase ошибка: ${error.message}`);
+      console.error('Ошибка Supabase:', error.message);
+      throw new Error(`Ошибка Supabase: ${error.message}`);
     }
 
     console.log('Канал зарегистрирован:', data);
     res.json({ success: true, data });
   } catch (error) {
-    console.error('Ошибка при регистрации канала:', error.message, error.stack);
+    console.error('Ошибка регистрации канала:', error.message, error.stack);
     res.status(500).json({
       error: 'Не удалось зарегистрировать канал',
-      details: error.message,
+      details: error.message
     });
   }
 });
@@ -201,11 +201,11 @@ app.post('/api/register-channel', async (req, res) => {
 app.post('/api/upload-video', async (req, res) => {
   const { telegram_id, videoUrl, title, description } = req.body;
   if (!telegram_id || !videoUrl) {
-    return res.status(400).json({ error: 'Поля telegram_id и videoUrl обязательны' });
+    return res.status(400).json({ error: 'telegram_id и videoUrl обязательны' });
   }
 
   try {
-    console.log('Запрос /api/upload-video:', { telegram_id, videoUrl, title });
+    console.log('Запрос на /api/upload-video:', { telegram_id, videoUrl, title });
     const { data, error } = await supabase
       .from('publicVideos')
       .insert({
@@ -221,22 +221,22 @@ app.post('/api/upload-video', async (req, res) => {
         user_dislikes: [],
         comments: [],
         timestamp: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select();
 
     if (error) {
-      console.error('Ошибка Supabase:', error);
-      throw new Error(`Supabase ошибка: ${error.message}`);
+      console.error('Ошибка Supabase:', error.message);
+      throw new Error(`Ошибка Supabase: ${error.message}`);
     }
 
     console.log('Видео загружено:', data);
     res.json({ success: true, data });
   } catch (error) {
-    console.error('Ошибка при загрузке видео:', error.message, error.stack);
+    console.error('Ошибка загрузки видео:', error.message, error.stack);
     res.status(500).json({
       error: 'Не удалось загрузить видео',
-      details: error.message,
+      details: error.message
     });
   }
 });
@@ -245,11 +245,11 @@ app.post('/api/upload-video', async (req, res) => {
 app.post('/api/delete-video', async (req, res) => {
   const { url, telegram_id } = req.body;
   if (!url || !telegram_id) {
-    return res.status(400).json({ error: 'Поля url и telegram_id обязательны' });
+    return res.status(400).json({ error: 'url и telegram_id обязательны' });
   }
 
   try {
-    console.log('Запрос /api/delete-video:', { url, telegram_id });
+    console.log('Запрос на /api/delete-video:', { url, telegram_id });
     const { data, error } = await supabase
       .from('publicVideos')
       .delete()
@@ -258,22 +258,22 @@ app.post('/api/delete-video', async (req, res) => {
       .select();
 
     if (error) {
-      console.error('Ошибка Supabase:', error);
-      throw new Error(`Supabase ошибка: ${error.message}`);
+      console.error('Ошибка Supabase:', error.message);
+      throw new Error(`Ошибка Supabase: ${error.message}`);
     }
 
     console.log('Видео удалено:', data);
     res.json({ success: true, data });
   } catch (error) {
-    console.error('Ошибка при удалении видео:', error.message, error.stack);
+    console.error('Ошибка удаления видео:', error.message, error.stack);
     res.status(500).json({
       error: 'Не удалось удалить видео',
-      details: error.message,
+      details: error.message
     });
   }
 });
 
-// Обработка ошибок для несуществующих маршрутов
+// Обработка несуществующих маршрутов
 app.use((req, res) => {
   res.status(404).json({ error: 'Маршрут не найден' });
 });
@@ -282,8 +282,8 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('Глобальная ошибка:', err.message, err.stack);
   res.status(500).json({
-    error: 'Произошла ошибка сервера',
-    details: err.message,
+    error: 'Ошибка сервера',
+    details: err.message
   });
 });
 
