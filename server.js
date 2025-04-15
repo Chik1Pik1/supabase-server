@@ -11,7 +11,7 @@ app.use(
   cors({
     origin: [
       'https://resonant-torte-bf7a96.netlify.app',
-      'http://localhost:3000', // Для локальной разработки
+      'http://localhost:3000',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -20,7 +20,7 @@ app.use(
 
 app.use(express.json());
 
-// Корневой маршрут для проверки работоспособности
+// Корневой маршрут
 app.get('/', (req, res) => {
   res.status(200).json({ message: 'Добро пожаловать в API TGClips' });
 });
@@ -37,13 +37,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Проверка подключения к Supabase
 supabase
   .from('publicVideos')
-  .select('id')
-  .limit(1)
+  .select('url', { count: 'exact', head: true }) // Проверяем только url
+  .limit(0)
   .then(({ error }) => {
     if (error) {
-      console.error('Ошибка подключения к Supabase:', error.message);
+      console.error('Ошибка проверки таблицы publicVideos:', error.message);
     } else {
-      console.log('Успешно подключено к Supabase');
+      console.log('Таблица publicVideos доступна в Supabase');
     }
   })
   .catch((err) => console.error('Критическая ошибка Supabase:', err));
@@ -60,7 +60,7 @@ app.get('/api/public-videos', async (req, res) => {
   try {
     console.log('Запрос /api/public-videos');
     const { data, error } = await supabase
-      .from('publicVideos') // Исправлено на правильное имя таблицы
+      .from('publicVideos')
       .select('*')
       .eq('is_public', true)
       .order('created_at', { ascending: false });
@@ -100,7 +100,7 @@ app.post('/api/update-video', async (req, res) => {
     }
 
     const { data, error } = await supabase
-      .from('publicVideos') // Исправлено на правильное имя таблицы
+      .from('publicVideos')
       .upsert(
         {
           url,
@@ -204,13 +204,19 @@ app.post('/api/upload-video', async (req, res) => {
   try {
     console.log('Запрос /api/upload-video:', { telegram_id, videoUrl, title });
     const { data, error } = await supabase
-      .from('publicVideos') // Исправлено на правильное имя таблицы
+      .from('publicVideos')
       .insert({
         user_id: telegram_id,
         url: videoUrl,
         title,
         description,
         is_public: false,
+        views: [],
+        likes: 0,
+        dislikes: 0,
+        user_likes: [],
+        user_dislikes: [],
+        comments: [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -242,7 +248,7 @@ app.post('/api/delete-video', async (req, res) => {
   try {
     console.log('Запрос /api/delete-video:', { url, telegram_id });
     const { data, error } = await supabase
-      .from('publicVideos') // Исправлено на правильное имя таблицы
+      .from('publicVideos')
       .delete()
       .eq('url', url)
       .eq('user_id', telegram_id)
