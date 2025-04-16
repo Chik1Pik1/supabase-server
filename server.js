@@ -23,13 +23,19 @@ app.use(express.json());
 // Настройка Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+    console.error('Ошибка: SUPABASE_URL или SUPABASE_KEY не заданы');
+    process.exit(1);
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Настройка Multer
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 100 * 1024 * 1024 }, // Лимит 100 МБ
+    limits: { fileSize: 100 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const filetypes = /mp4|mov|webm/;
         const mimetype = filetypes.test(file.mimetype);
@@ -50,7 +56,7 @@ app.get('/', (req, res) => {
 app.get('/api/public-videos', async (req, res) => {
     try {
         const { data, error } = await supabase
-            .from('videos') // Или 'publicVideos', если используете эту таблицу
+            .from('publicVideos')
             .select('*')
             .eq('is_public', true);
 
@@ -103,7 +109,7 @@ app.post('/api/update-video', async (req, res) => {
         };
 
         const { data, error } = await supabase
-            .from('videos')
+            .from('publicVideos')
             .update(updateData)
             .eq('url', url)
             .select();
@@ -126,7 +132,7 @@ app.delete('/api/delete-video', async (req, res) => {
         const { url } = req.body;
 
         const { data: video, error: fetchError } = await supabase
-            .from('videos')
+            .from('publicVideos')
             .select('file_name')
             .eq('url', url)
             .single();
@@ -152,7 +158,7 @@ app.delete('/api/delete-video', async (req, res) => {
         }
 
         const { error: deleteError } = await supabase
-            .from('videos')
+            .from('publicVideos')
             .delete()
             .eq('url', url);
 
@@ -200,6 +206,7 @@ app.post('/api/upload-video', upload.fields([
             .single();
 
         if (userError || !user) {
+            console.log('Сохранение userId в users:', userId);
             const { error: insertError } = await supabase
                 .from('users')
                 .insert([{ id: userId, created_at: new Date().toISOString() }]);
@@ -227,7 +234,7 @@ app.post('/api/upload-video', upload.fields([
             .from('videos')
             .getPublicUrl(fileName).data;
 
-        // Сохранение метаданных в таблицу videos
+        // Сохранение метаданных в таблицу publicVideos
         const videoData = {
             url: publicUrl,
             file_name: fileName,
@@ -249,8 +256,9 @@ app.post('/api/upload-video', upload.fields([
             created_at: new Date().toISOString()
         };
 
+        console.log('Сохранение videoData:', videoData);
         const { data: insertData, error: insertError } = await supabase
-            .from('videos')
+            .from('publicVideos')
             .insert([videoData])
             .select();
 
@@ -296,6 +304,7 @@ app.post('/api/register-channel', async (req, res) => {
 app.get('/api/channels/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
+        console.log('Обработка маршрута /api/channels/:userId с userId:', userId);
 
         const { data, error } = await supabase
             .from('channels')
