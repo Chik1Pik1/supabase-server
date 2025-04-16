@@ -2,10 +2,12 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const multer = require('multer');
 const cors = require('cors');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
+
+// Отладка: какой файл запущен
+console.log('Запущен файл: server.js');
 
 // Настройка CORS
 const corsOptions = {
@@ -23,12 +25,10 @@ app.use(express.json());
 // Настройка Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
-
 if (!supabaseUrl || !supabaseKey) {
     console.error('Ошибка: SUPABASE_URL или SUPABASE_KEY не заданы');
     process.exit(1);
 }
-
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Настройка Multer
@@ -39,7 +39,7 @@ const upload = multer({
     fileFilter: (req, file, cb) => {
         const filetypes = /mp4|mov|webm/;
         const mimetype = filetypes.test(file.mimetype);
-        const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+        const extname = filetypes.test(file.originalname.toLowerCase().split('.').pop());
         if (mimetype && extname) {
             return cb(null, true);
         }
@@ -59,12 +59,12 @@ app.get('/api/public-videos', async (req, res) => {
             .from('publicVideos')
             .select('*')
             .eq('is_public', true);
-
+        
         if (error) {
             console.error('Ошибка получения видео:', error);
             return res.status(500).json({ error: error.message });
         }
-
+        
         res.json(data);
     } catch (err) {
         console.error('Серверная ошибка:', err);
@@ -75,23 +75,8 @@ app.get('/api/public-videos', async (req, res) => {
 // Обновление данных видео
 app.post('/api/update-video', async (req, res) => {
     try {
-        const {
-            url,
-            views,
-            likes,
-            dislikes,
-            user_likes,
-            user_dislikes,
-            comments,
-            shares,
-            view_time,
-            replays,
-            duration,
-            last_position,
-            chat_messages,
-            description
-        } = req.body;
-
+        const { url, views, likes, dislikes, user_likes, user_dislikes, comments, description } = req.body;
+        
         const updateData = {
             views,
             likes,
@@ -99,26 +84,20 @@ app.post('/api/update-video', async (req, res) => {
             user_likes,
             user_dislikes,
             comments,
-            shares,
-            view_time,
-            replays,
-            duration,
-            last_position,
-            chat_messages,
             description
         };
-
+        
         const { data, error } = await supabase
             .from('publicVideos')
             .update(updateData)
             .eq('url', url)
             .select();
-
+        
         if (error) {
             console.error('Ошибка обновления видео:', error);
             return res.status(500).json({ error: error.message });
         }
-
+        
         res.json({ message: 'Video updated successfully', data });
     } catch (err) {
         console.error('Серверная ошибка:', err);
@@ -130,43 +109,43 @@ app.post('/api/update-video', async (req, res) => {
 app.delete('/api/delete-video', async (req, res) => {
     try {
         const { url } = req.body;
-
+        
         const { data: video, error: fetchError } = await supabase
             .from('publicVideos')
             .select('file_name')
             .eq('url', url)
             .single();
-
+        
         if (fetchError) {
             console.error('Ошибка получения видео:', fetchError);
             return res.status(500).json({ error: fetchError.message });
         }
-
+        
         if (!video) {
             return res.status(404).json({ error: 'Видео не найдено' });
         }
-
+        
         const fileName = video.file_name;
-
+        
         const { error: storageError } = await supabase.storage
             .from('videos')
             .remove([fileName]);
-
+        
         if (storageError) {
             console.error('Ошибка удаления файла:', storageError);
             return res.status(500).json({ error: storageError.message });
         }
-
+        
         const { error: deleteError } = await supabase
             .from('publicVideos')
             .delete()
             .eq('url', url);
-
+        
         if (deleteError) {
             console.error('Ошибка удаления записи:', deleteError);
             return res.status(500).json({ error: deleteError.message });
         }
-
+        
         res.json({ message: 'Видео успешно удалено' });
     } catch (err) {
         console.error('Серверная ошибка:', err);
@@ -198,7 +177,7 @@ app.post('/api/upload-video', upload.fields([
             description
         });
 
-        // Проверка пользователя в таблице users
+        // Проверка пользователя
         let { data: user, error: userError } = await supabase
             .from('users')
             .select('id')
@@ -206,18 +185,17 @@ app.post('/api/upload-video', upload.fields([
             .single();
 
         if (userError || !user) {
-            console.log('Сохранение userId в users:', userId);
+            console.log('Создание нового пользователя:', userId);
             const { error: insertError } = await supabase
                 .from('users')
                 .insert([{ id: userId, created_at: new Date().toISOString() }]);
-
             if (insertError) {
                 console.error('Ошибка создания пользователя:', insertError);
                 return res.status(500).json({ error: 'Ошибка создания пользователя' });
             }
         }
 
-        // Загрузка файла в Supabase Storage
+        // Загрузка файла
         const fileName = `${userId}/${Date.now()}-${file.originalname}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
             .from('videos')
@@ -230,11 +208,9 @@ app.post('/api/upload-video', upload.fields([
             return res.status(500).json({ error: uploadError.message });
         }
 
-        const { publicUrl } = supabase.storage
-            .from('videos')
-            .getPublicUrl(fileName).data;
+        const { publicUrl } = supabase.storage.from('videos').getPublicUrl(fileName).data;
 
-        // Сохранение метаданных в таблицу publicVideos
+        // Сохранение в publicVideos
         const videoData = {
             url: publicUrl,
             file_name: fileName,
@@ -294,29 +270,6 @@ app.post('/api/register-channel', async (req, res) => {
         }
 
         res.json({ message: 'Канал успешно зарегистрирован', channel: data[0] });
-    } catch (err) {
-        console.error('Серверная ошибка:', err);
-        res.status(500).json({ error: 'Внутренняя ошибка сервера' });
-    }
-});
-
-// Получение зарегистрированных каналов
-app.get('/api/channels/:userId', async (req, res) => {
-    try {
-        const { userId } = req.params;
-        console.log('Обработка маршрута /api/channels/:userId с userId:', userId);
-
-        const { data, error } = await supabase
-            .from('channels')
-            .select('*')
-            .eq('user_id', userId);
-
-        if (error) {
-            console.error('Ошибка получения каналов:', error);
-            return res.status(500).json({ error: error.message });
-        }
-
-        res.json(data);
     } catch (err) {
         console.error('Серверная ошибка:', err);
         res.status(500).json({ error: 'Внутренняя ошибка сервера' });
