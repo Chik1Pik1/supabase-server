@@ -165,7 +165,7 @@ export default {
       try {
         const formData = await request.formData();
         const file = formData.get('video');
-        const author_id = formData.get('author_id') || 'unknown'; // Предполагается, что author_id передаётся
+        const author_id = formData.get('author_id') || 'unknown';
         const description = formData.get('description') || '';
         if (!file) {
           return new Response(JSON.stringify({ error: 'No file uploaded' }), {
