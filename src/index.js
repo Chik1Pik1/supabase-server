@@ -12,17 +12,14 @@ export default {
 
     // OPTIONS for CORS
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
-        status: 200,
-        headers: corsHeaders,
-      });
+      return new Response(null, { status: 200, headers: corsHeaders });
     }
 
     // GET /api/public-videos - Получить публичные видео
     if (request.method === 'GET' && url.pathname === '/api/public-videos') {
       try {
         const { data, error } = await supabase
-          .from('videos')
+          .from('publicVideos')
           .select('*')
           .eq('is_public', true);
         if (error) {
@@ -48,10 +45,42 @@ export default {
     // POST /api/update-video - Обновить данные видео
     if (request.method === 'POST' && url.pathname === '/api/update-video') {
       try {
-        const { url, views, likes, dislikes, user_likes, user_dislikes, comments } = await request.json();
+        const {
+          url,
+          views,
+          likes,
+          dislikes,
+          user_likes,
+          user_dislikes,
+          comments,
+          shares,
+          view_time,
+          replays,
+          duration,
+          last_position,
+          chat_messages,
+          description,
+          author_id,
+        } = await request.json();
         const { data, error } = await supabase
-          .from('videos')
-          .update({ views, likes, dislikes, user_likes, user_dislikes, comments })
+          .from('publicVideos')
+          .update({
+            views,
+            likes,
+            dislikes,
+            user_likes,
+            user_dislikes,
+            comments,
+            shares,
+            view_time,
+            replays,
+            duration,
+            last_position,
+            chat_messages,
+            description,
+            author_id,
+            updated_at: new Date().toISOString(),
+          })
           .eq('url', url)
           .select();
         if (error) {
@@ -79,7 +108,7 @@ export default {
       try {
         const { url } = await request.json();
         const { data: video, error: fetchError } = await supabase
-          .from('videos')
+          .from('publicVideos')
           .select('file_name')
           .eq('url', url)
           .single();
@@ -108,7 +137,7 @@ export default {
           });
         }
         const { error: deleteError } = await supabase
-          .from('videos')
+          .from('publicVideos')
           .delete()
           .eq('url', url);
         if (deleteError) {
@@ -136,6 +165,8 @@ export default {
       try {
         const formData = await request.formData();
         const file = formData.get('video');
+        const author_id = formData.get('author_id') || 'unknown'; // Предполагается, что author_id передаётся
+        const description = formData.get('description') || '';
         if (!file) {
           return new Response(JSON.stringify({ error: 'No file uploaded' }), {
             status: 400,
@@ -168,9 +199,19 @@ export default {
           user_likes: [],
           user_dislikes: [],
           comments: [],
+          shares: 0,
+          view_time: 0,
+          replays: 0,
+          duration: 0,
+          last_position: 0,
+          chat_messages: [],
+          description,
+          author_id,
+          timestamp: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         };
         const { data: insertData, error: insertError } = await supabase
-          .from('videos')
+          .from('publicVideos')
           .insert([videoData])
           .select();
         if (insertError) {
@@ -193,63 +234,7 @@ export default {
       }
     }
 
-    // POST /api/register-channel - Регистрация канала
-    if (request.method === 'POST' && url.pathname === '/api/register-channel') {
-      try {
-        const { userId, channelName } = await request.json();
-        const { data, error } = await supabase
-          .from('channels')
-          .insert([{ user_id: userId, channel_name: channelName }])
-          .select();
-        if (error) {
-          console.error('Supabase error:', error);
-          return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          });
-        }
-        return new Response(JSON.stringify({ message: 'Channel registered successfully', channel: data[0] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        });
-      } catch (err) {
-        console.error('Server error:', err);
-        return new Response(JSON.stringify({ error: 'Internal server error' }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        });
-      }
-    }
-
-    // GET /api/channels/:userId - Получить каналы пользователя
-    if (request.method === 'GET' && url.pathname.startsWith('/api/channels/')) {
-      try {
-        const userId = url.pathname.split('/')[3];
-        const { data, error } = await supabase
-          .from('channels')
-          .select('*')
-          .eq('user_id', userId);
-        if (error) {
-          console.error('Supabase error:', error);
-          return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json', ...corsHeaders },
-          });
-        }
-        return new Response(JSON.stringify(data), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        });
-      } catch (err) {
-        console.error('Server error:', err);
-        return new Response(JSON.stringify({ error: 'Internal server error' }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders },
-        });
-      }
-    }
-
-    // 404 for other routes
+    // 404 для остальных маршрутов
     return new Response('Not Found', { status: 404 });
   },
 };
