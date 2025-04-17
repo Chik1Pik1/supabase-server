@@ -165,7 +165,7 @@ export default {
       try {
         const formData = await request.formData();
         const file = formData.get('video');
-        const author_id = formData.get('author_id') || 'unknown';
+        const author_id = formData.get('userId') || 'unknown';
         const description = formData.get('description') || '';
         if (!file) {
           return new Response(JSON.stringify({ error: 'No file uploaded' }), {
@@ -222,6 +222,46 @@ export default {
           });
         }
         return new Response(JSON.stringify({ message: 'Video uploaded successfully', video: insertData[0] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      } catch (err) {
+        console.error('Server error:', err);
+        return new Response(JSON.stringify({ error: 'Internal server error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+    }
+
+    // POST /api/register-channel - Регистрация канала
+    if (request.method === 'POST' && url.pathname === '/api/register-channel') {
+      try {
+        const { userId, channelName } = await request.json();
+        if (!userId || !channelName) {
+          return new Response(JSON.stringify({ error: 'userId and channelName are required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+        if (!channelName.match(/^https:\/\/t\.me\/[a-zA-Z0-9_]+$/)) {
+          return new Response(JSON.stringify({ error: 'Invalid channelName format' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+        const { data, error } = await supabase
+          .from('channels')
+          .upsert({ user_id: userId, channel_name: channelName }, { onConflict: 'user_id' })
+          .select();
+        if (error) {
+          console.error('Supabase error:', error);
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+        return new Response(JSON.stringify({ message: 'Channel registered successfully', channel: data[0] }), {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
         });
