@@ -23,6 +23,32 @@ export default {
       });
     }
 
+    // GET /api/channels - Получить зарегистрированные каналы
+    if (request.method === 'GET' && url.pathname === '/api/channels') {
+      try {
+        const { data, error } = await supabase
+          .from('channels')
+          .select('*');
+        if (error) {
+          console.error('Supabase error:', error);
+          return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+        return new Response(JSON.stringify(data), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      } catch (err) {
+        console.error('Server error:', err);
+        return new Response(JSON.stringify({ error: 'Internal server error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+    }
+
     // GET /api/public-videos - Получить публичные видео
     if (request.method === 'GET' && url.pathname === '/api/public-videos') {
       try {
@@ -186,6 +212,7 @@ export default {
           .from('videos')
           .upload(fileName, file, {
             contentType: file.type,
+            cacheControl: '3600', // Добавляем кэширование
           });
         if (uploadError) {
           console.error('Storage error:', uploadError);
@@ -272,6 +299,60 @@ export default {
         return new Response(JSON.stringify({ message: 'Channel registered successfully', channel: data[0] }), {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      } catch (err) {
+        console.error('Server error:', err);
+        return new Response(JSON.stringify({ error: 'Internal server error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+    }
+
+    // GET /api/download-video - Скачивание видео
+    if (request.method === 'GET' && url.pathname === '/api/download-video') {
+      try {
+        const videoUrl = url.searchParams.get('url');
+        if (!videoUrl) {
+          return new Response(JSON.stringify({ error: 'Video URL is required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+        // Проверяем, существует ли видео в Supabase
+        const { data: video, error: fetchError } = await supabase
+          .from('publicVideos')
+          .select('file_name')
+          .eq('url', videoUrl)
+          .single();
+        if (fetchError || !video) {
+          console.error('Supabase error:', fetchError);
+          return new Response(JSON.stringify({ error: 'Video not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+        // Получаем файл из Supabase Storage
+        const { data: fileData, error: storageError } = await supabase.storage
+          .from('videos')
+          .download(video.file_name);
+        if (storageError) {
+          console.error('Storage error:', storageError);
+          return new Response(JSON.stringify({ error: storageError.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders },
+          });
+        }
+        // Читаем Blob в ArrayBuffer
+        const arrayBuffer = await fileData.arrayBuffer();
+        return new Response(arrayBuffer, {
+          status: 200,
+          headers: {
+            'Content-Type': fileData.type || 'video/mp4',
+            'Content-Disposition': `attachment; filename="${video.file_name}"`,
+            'Cache-Control': 'no-cache',
+            ...corsHeaders,
+          },
         });
       } catch (err) {
         console.error('Server error:', err);
