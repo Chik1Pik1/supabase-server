@@ -5,7 +5,7 @@ export default {
     const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
     const url = new URL(request.url);
     const corsHeaders = {
-      'Access-Control-Allow-Origin': 'https://tg-clips.netlify.app',
+      'Access-Control-Allow-Origin': url.origin === 'http://localhost:3000' ? 'http://localhost:3000' : 'https://tg-clips.netlify.app',
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, PUT, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
@@ -13,6 +13,14 @@ export default {
     // OPTIONS for CORS
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 200, headers: corsHeaders });
+    }
+
+    // GET / - Корневой путь
+    if (request.method === 'GET' && url.pathname === '/') {
+      return new Response('Welcome to TG Clips API!', {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain', ...corsHeaders },
+      });
     }
 
     // GET /api/public-videos - Получить публичные видео
@@ -275,6 +283,9 @@ export default {
     }
 
     // 404 для остальных маршрутов
-    return new Response('Not Found', { status: 404 });
+    return new Response('Not Found', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain', ...corsHeaders },
+    });
   },
 };
