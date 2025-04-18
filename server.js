@@ -182,21 +182,19 @@ app.post('/api/upload-video', upload.single('video'), async (req, res) => {
 });
 
 // Регистрация канала
-app.post('/api/register-channel', async (req, res) => {
+app.get('/api/channels/:userId', async (req, res) => {
+    console.log('Эндпоинт /api/channels/:userId вызван, userId:', req.params.userId, 'Origin:', req.get('Origin'));
     try {
-        const { userId, channelName } = req.body;
-        
+        const { userId } = req.params;
         const { data, error } = await supabase
             .from('channels')
-            .insert([{ user_id: userId, channel_name: channelName }])
-            .select();
-        
+            .select('*')
+            .eq('user_id', userId);
         if (error) {
-            console.error('Ошибка регистрации канала:', error);
+            console.error('Ошибка получения каналов:', error);
             return res.status(500).json({ error: error.message });
         }
-        
-        res.json({ message: 'Канал успешно зарегистрирован', channel: data[0] });
+        res.json(data);
     } catch (err) {
         console.error('Серверная ошибка:', err);
         res.status(500).json({ error: 'Внутренняя ошибка сервера' });
