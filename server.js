@@ -8,7 +8,10 @@ const app = express();
 
 // Настройка CORS для разрешения запросов с клиентского приложения
 const corsOptions = {
-    origin: 'https://resonant-torte-bf7a96.netlify.app',
+    origin: [
+        'https://resonant-torte-bf7a96.netlify.app',
+        'https://tg-clips.netlify.app'
+    ],
     methods: ['GET', 'POST', 'DELETE', 'PUT', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     optionsSuccessStatus: 200
